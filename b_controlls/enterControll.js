@@ -2,52 +2,49 @@ const User = require('../c_models/userModel');
 const Url = require('../c_models/urlModel');
 const Shorten = require('../c_models/shortenModel');
 const Campaign = require('../c_models/campaignModel');
-const Accesslog = require('../c_models/accesslogModel');
 const seedUrl = require('../public/modul/seedUrl');
+const CampaignModul = require('../public/modul/campaignModul');
+const ExportModul = require('../public/modul/exportModul');
 const AccessModul = require('../public/modul/accessModul');
-const excel = require('node-excel-export');
+const LinkModul = require('../public/modul/linkModul');
+// const Accesslog = require('../c_models/accesslogModel');
+let arr_campaignPl;
 let ob_campaignPl;
 let ob_urlPl;
 let arr_shortPl;
 let accessGr_Pl;
-let accessF_Pl;
 let accessE_Pl;
 let accessS_Pl;
 let accessO_Pl;
-let total_fb, total_e, total_s, total_o;
+// for manager campaign
+let obCampBefore;
+
+
 // Manager campaign
 exports.manager = async (req, res) => {
-    let ob_url;
+    // manager tro ve homeEnter.ejs
     try {
         //Get arr object campaign
         let id_user = await User.getIdByUser(req.session.user);
         let arr_campaign = await Campaign.getAllCampaignByIDUser(id_user);
         arr_campaign = seedUrl.removeCampaignNull(arr_campaign);
-        // // console.log("arr_campaign:", arr_campaign);
-        // ob_url = await Url.getObUrlById(arr_campaign[0].id_urls[0]);
-        // // console.log("ob_url:", ob_url);
-        // // get array shortUrl of the first Campaign
-        // let arrShortUrl = await seedUrl.getArrShortUrl(ob_url.short_urls);
-        // // console.log("arrShortUrl:", arrShortUrl);
-        // let convertShort = seedUrl.converArrShort(arrShortUrl);
-        // // console.log("convertShort:", convertShort);
-        // res.render("../d_views/enter/managerCampaign.ejs", {campaign: arr_campaign,camp_first: arr_campaign[0], ob_url: ob_url, convertShort:convertShort});
-        res.render("../d_views/enter/managerCampaign.ejs", { campaign: arr_campaign });
+        arr_campaignPl = arr_campaign;//don't care
+        res.render("../d_views/enter/homeEnter.ejs", { arrCampaign: arr_campaign });
     } catch (e) {
         console.log(e + "--tuan:manager in enter");
     }
 }
-//Get campaign by name
-exports.getCampaignByName = async (req, res) => {
-    // console.log("data receive from client:", req.body);
+// detail campaign
+exports.getDetailCamp = async (req, res) => {
+    let id = req.params.id;
     let customer = {};
     try {
-        let ob_campaign = await Campaign.getCampaignByName(req.body.name); ob_campaignPl = ob_campaign;
+        let ob_campaign = await Campaign.getCampaignById(id); ob_campaignPl = ob_campaign;
         let start_time = ob_campaign.start_time; let end_time = ob_campaign.end_time;
         end_time = AccessModul.returnEndTime(end_time);
         // console.log("ob_campaign:", ob_campaign);
         let ob_url = await Url.getObUrlById(ob_campaign.id_urls[0]); ob_urlPl = ob_url;
-        let arr_shortUrl = await seedUrl.getArrShortUrl(ob_url.short_urls); arr_shortPl = arr_shortUrl;
+        let arr_shortUrl = await seedUrl.getArrShortUrl(ob_url.short_urls); arr_shortPl = arr_shortUrl;//don't care arr_shortPl
         let arr_shortUrlCV = await seedUrl.converArrShort(arr_shortUrl);
         // console.log("arr_shortUrl:", arr_shortUrl);
         // Get array access
@@ -63,17 +60,13 @@ exports.getCampaignByName = async (req, res) => {
         let arr_accessO1 = AccessModul.filterArrAccess(arr_accessO, start_time, end_time);//console.log("Other1:",arr_accessO1);
         let arr_accessGr1 = AccessModul.filterArrAccessGr(arr_accessGr, start_time, end_time);//console.log("arr_accessGr1:", arr_accessGr1[0]);
         accessGr_Pl = arr_accessGr1; accessE_Pl = arr_accessE1; accessS_Pl = arr_accessS1;
-        accessO_Pl = arr_accessO1; accessF_Pl = arr_accessF1;
+        accessO_Pl = arr_accessO1;
         // Get value average Day
         let averageDayF = await AccessModul.caculateAverageDay(arr_accessF1, start_time, end_time); //console.log("averageDayF:",JSON.stringify(averageDayF));
         let averageDayE = await AccessModul.caculateAverageDay(arr_accessE1, start_time, end_time); //console.log("averageDayE:", JSON.stringify(averageDayE));
         let averageDayS = await AccessModul.caculateAverageDay(arr_accessS1, start_time, end_time); //console.log("averageDayS:", JSON.stringify(averageDayS));
         let averageDayO = await AccessModul.caculateAverageDay(arr_accessO1, start_time, end_time); //console.log("averageDayO:", JSON.stringify(averageDayO));
         let averageGr = await AccessModul.caculateAverageHour(arr_accessGr1, start_time, end_time);
-        total_fb = averageDayF.sum;
-        total_e = averageDayE.sum;
-        total_s = averageDayS.sum;
-        total_o = averageDayO.sum;
         // console.log("AverageGr:", averageGr);
         //Get info chart (os, browser, device)
         let arrFilter = arr_accessF1.concat(arr_accessE1, arr_accessS1, arr_accessO1);
@@ -82,250 +75,40 @@ exports.getCampaignByName = async (req, res) => {
 
         customer.ob_url = ob_url;
         customer.arr_shortUrl = arr_shortUrlCV;
-        // customer.detailTotal = detailTotal;
         customer.averageDayF = averageDayF.average;
         customer.averageDayE = averageDayE.average;
         customer.averageDayS = averageDayS.average;
         customer.averageDayO = averageDayO.average;
-        customer.clickF = averageDayF.sum;total_fb = averageDayF.sum;
-        customer.clickE = averageDayE.sum;total_e = averageDayE.sum;
-        customer.clickS = averageDayS.sum;total_s = averageDayS.sum;
-        customer.clickO = averageDayO.sum;total_o = averageDayO.sum;
+        customer.clickF = arr_accessF1.length;
+        customer.clickE = arr_accessE1.length;
+        customer.clickS = arr_accessS1.length;
+        customer.clickO = arr_accessO1.length;
         customer.averageGr = averageGr;
         customer.browser = objInfo.browser;
         customer.device = objInfo.device;
         customer.osDesktop = objInfo.osDesktop;
         customer.osPhone = objInfo.osPhone;
         customer.objLocation = objInfo.objLocation;
-        // console.log("test:", customer.objLocation);
-        res.send(customer);
+        // console.log("test:", JSON.stringify(customer));
+
+        res.render('../d_views/enter/detailCampaign.ejs', { arrCampaign: arr_campaignPl, obCamp: ob_campaign, customer: customer });
 
     } catch (e) {
-        console.log(e + "--tuan: getCampaignByName");
+        console.log(e + "--tuan: getailCampain in EnterControll");
     }
 }
-// Export excel
-exports.exportExcel = (req, res) => {
-    // console.log("total_e:", total_e);
-    let mydata = [];
-    for(let i = 0; i < arr_shortPl.length; i++){
-        let ob = {};
-        if(i == 0) {
-            ob.name = ob_campaignPl.name;
-            ob.url_origin = ob_urlPl.url;
-            ob.time_create = ob_campaignPl.time_create;
-            ob.start_time = ob_campaignPl.start_time;
-            ob.end_time = ob_campaignPl.end_time;
-        }  else {
-            ob.name = null;
-            ob.url_origin = null;
-            ob.time_create = null;
-            ob.start_time = null;
-            ob.end_time = null;
-        }
-        ob.url_shorten = arr_shortPl[i].url;
-        ob.resource = arr_shortPl[i].resource;
-        ob.group = arr_shortPl[i].group;
-        // console.log(arr_shortPl[i].group)
-        if(arr_shortPl[i].resource == "fb") {
-            for(let k = 0; k < accessGr_Pl.length; k++){
-                if(arr_shortPl[i].group == accessGr_Pl[k].name) {
-                    ob.total_click = accessGr_Pl[k].arr_access.length;
-                }
-            }
-        }
-        else if(arr_shortPl[i].resource == "email"){ ob.total_click = total_e;}
-        else if(arr_shortPl[i].resource == "sms") {ob.total_click = total_s;}
-        else if(arr_shortPl[i].resource == "other") {ob.total_click = total_o;}
-        mydata.push(ob);
-    }
-    let mydata2 = prepareData1();
-    // console.log("mydata2:", JSON.stringify(mydata2));
-
-    // Format Style
-    const styles = {
-        headerOverview: {
-
-            font: {
-                color: {
-                    rgb: '1282E7'
-                },
-                bold: true,
-                underline: false,
-            }
-        },
-        headerSub: {
-
-            font: {
-                color: {
-                    rgb: 'FA5700'
-                },
-                bold: false,
-                underline: false
-            }
-        }
-    };
-
-    // Heading
-    const heading = [
-        [{ value: 'Overview', style: styles.headerOverview }],
-    ];
-    const heading2 = [
-        [{ value: 'Detail', style: styles.headerOverview }],
-    ];
-
-    //Here you specify the export structure
-    const specification = {
-        name: {
-            displayName: 'Name',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        time_create: {
-            displayName: 'Time create',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        start_time: {
-            displayName: 'Start time',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        end_time: {
-            displayName: 'End time',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        url_origin: {
-            displayName: 'URL Origin',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        url_shorten: {
-            displayName: 'URL Shorten',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        resource: {
-            displayName: 'Resource',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        group: {
-            displayName: 'Group',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        total_click: {
-            displayName: 'Total click',
-            headerStyle: styles.headerSub,
-            width: 100
-        }
-    }
-    const specification2 = {
-        url_shorten: {
-            displayName: 'Url shorten',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        resource: {
-            displayName: 'Resource',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        group: {
-            displayName: 'Group',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        ip: {
-            displayName: 'IP',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        date_click: {
-            displayName: 'Date click',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        hour_click: {
-            displayName: 'Hour click',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        location: {
-            displayName: 'Location',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        device: {
-            displayName: 'Device',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        os: {
-            displayName: 'OS',
-            headerStyle: styles.headerSub,
-            width: 100
-        },
-        browser: {
-            displayName: 'Browser',
-            headerStyle: styles.headerSub,
-            width: 100
-        }
-    }
-    
-
-    // Create the excel report.
-    const report = excel.buildExport(
-        [
-            {
-                name: 'Overview',
-                heading: heading,
-                specification: specification,
-                data: mydata
-            },
-            {
-                name: 'Detail',
-                heading: heading2,
-                specification: specification2,
-                data: mydata2
-            }
-        ]
-    );
-
-    // // Response
-    res.attachment('report.xlsx');
-    return res.send(report);
-    
-}
-
-
-
-
-
-
-
-
 //Create campaign
 exports.createCampaign_get = async (req, res) => {
-    res.render("../d_views/enter/createCampaign.ejs");
+    res.render("../d_views/enter/createCampaign.ejs", { arrCampaign: arr_campaignPl });
 }
-// Create seed Capaign
 exports.createCampaign_post = async (req, res) => {
-    // console.log("req.body:", req.body['group[]']);
-    // console.log("Req.body:", req.body);
     let data = req.body;
-    let domain = await User.getDomain(req.session.user);
-    console.log("domain:", domain);
+    let domain = 'dontcare.com';
     let sms = seedUrl.createShortUrl(domain);
     let email = seedUrl.createShortUrl(domain);
     let other = seedUrl.createShortUrl(domain);
     let fb = [];
-    let len = data.faceGroup.length;
-    // console.log("typeof DATA.FACEGROUP:",typeof data.faceGroup);
-    // console.log("LEN:",len);
-    //console.log("dataata length:", data.faceGroup.length);
+
     if (typeof data.faceGroup == "object") {
         for (let i = 0; i < (data.faceGroup).length; i++) {
             fb.push(seedUrl.createShortUrl(domain));
@@ -339,97 +122,135 @@ exports.createCampaign_post = async (req, res) => {
         name: data.name, oldUrl: data.oldUrl, faGroup: data.faceGroup,
         sms: sms, email: email, other: other, fb: fb, start: data.start, end: data.end
     }
-    // res.send(customer);
-    // console.log("customer:",customer );
-    res.render("../d_views/enter/confirm.ejs", customer);
+    // console.log("customer:", customer);
+    res.render('../d_views/enter/confirm.ejs', { customer: customer, arrCampaign: arr_campaignPl });
 }
-
 // Confirm campaign
 exports.confirm_post = async (req, res) => {
-    //res.send("Giao dien createCampaign");
-    //console.log("Req.body ::::", req.body);
-    let customer = {};
-    let domain = await User.getDomain(req.session.user);
     let rq = req.body;
-    let flagExist = true; //default
-    let flagFormat = false; //default
-    let flagDup = true// default 
-    let arrCheckDup = [rq.email, rq.sms, rq.other];
-    arrCheckDup = arrCheckDup.concat(rq['fbArr[]']);
-
-
+    // them username de tai su dung code validate campaign
+    rq.username = req.session.user;
     try {
-        //check exist url
-        let checkEmail = await Shorten.checkExist(rq.email); //console.log("checkEmail:", checkEmail);
-        let checkSms = await Shorten.checkExist(rq.sms);  //console.log("checkSms:", checkSms);
-        let checkOther = await Shorten.checkExist(rq.other);  //console.log("checkother:", checkOther);
-        let checkFb = await seedUrl.checkExistForFb(rq['fbArr[]']); //console.log("checkFb:", checkFb);
-        //check Format
-        let eFormat = seedUrl.checkFormatUrlShort(rq.email, domain); //console.log("eFormat:", eFormat);
-        let sFormat = seedUrl.checkFormatUrlShort(rq.sms, domain); //console.log("sFormat:", sFormat);
-        let oFormat = seedUrl.checkFormatUrlShort(rq.other, domain); //console.log("oFormat:", oFormat);
-        let fbFormat = seedUrl.checkFormatFbShort(rq['fbArr[]'], domain); //console.log("fbFormat:", fbFormat);
-
-        if (checkEmail == false && checkSms == false && checkOther == false && checkFb == false) flagExist = false;//"ok"
-        //console.log("flagExist:", flagExist);
-        if (eFormat && sFormat && oFormat && fbFormat) flagFormat = true; //console.log("flagFormat:", flagFormat);
-        flagDup = seedUrl.checkDuplicate(arrCheckDup); // console.log("flagDup:", flagDup);
-        let flagCampaign = await checkNameCamp(rq.name, req.session.user);
-        // console.log("CheckDup:", flagDup);
-        // console.log("CheckExist:", flagExist);
-        // console.log("CheckFormat:",flagFormat);
-
-        if (flagExist == false && flagFormat == true && flagDup == false && flagCampaign == false) {
-            console.log("ok");
-            //save shorten
-            let id_shortens = await saveShortUrlCampaign(rq); //console.log("id_shortens:", id_shortens);
-            if (id_shortens != undefined) {
-                //save url
-                let ob_url = await Url.save({ url: rq.oldUrl, short_urls: id_shortens, timeCreate: rq.start });
-                //console.log("ob_url:", ob_url);
+        let customer = await CampaignModul.validateConfirm(rq);
+        if (customer.state == 'ok') {
+            let ob_user = customer.ob_user;
+            let arrIdShorten = await CampaignModul.saveShortUrlCampaign(rq);
+            if (arrIdShorten != undefined) {
+                let ob_url = await Url.save({ url: rq.oldUrl, short_urls: arrIdShorten, timeCreate: rq.start });
                 if (ob_url != undefined) {
-                    //save campaign
-                    let id_enter = await User.getIdByUser("enterprise");//req.session.user
-                    //console.log("id_enter:", id_enter);
-                    if (id_enter != undefined) {
-                        let ob_campaign = await Campaign.save({ id_user: id_enter, id_urls: [ob_url.id], name: rq.name, start_time: rq.start, end_time: rq.end });
-                        //console.log("ob_campaign:", ob_campaign);
-                        if (ob_campaign != undefined) customer.state = "ok";
-                        else customer.state = "fail";
-                    } else customer.state = "fail";
-                } else customer.state = "fail";
-            } else customer.state = "fail";
-            //res.send(customer);
-        } else {
-            console.log("Loi roi loi roi");
-            customer.state = "fail";
-            if (flagCampaign == true) customer.err_campaign = true;
-            else customer.err_campaign = false;
-            if (flagExist == true) customer.err_exist = true;
-            else customer.err_exist = false;
-            if (flagFormat == false) customer.err_format = true;
-            else customer.err_format = false;
-            if (flagDup == true) customer.err_dup = true;
-            else customer.err_dup = false;
-            //res.send(customer);
+                    let ob_campaign = await Campaign.save({
+                        id_user: ob_user.id, id_urls: [ob_url.id], name: rq.name,
+                        start_time: rq.start, end_time: rq.end
+                    });
+                }
+            }
         }
+        res.send(customer);
     } catch (e) {
-        console.log(e + "--tuan: confirm_post");
+        console.log(e + '--tuan: confirmCampaign in Entercontroll');
     }
-    return res.send(customer);
+}
+//Edit campaign
+exports.editCamp_get = async (req, res) => {
+    idCamp = req.params.id;
+    try {
+        let ob_camp = await Campaign.getObCampById(idCamp);
+        //chuan hoa
+        let standar = await CampaignModul.standardizedCampaign([ob_camp]);
+        ob_camp = standar[0];
+        let arrShort = ob_camp.arrShort;
+        arrShort = seedUrl.converArrShort(arrShort);
+        let arrFb = arrShort.fb;
+        let faGroup = []; // array group facebook
+        let fb = []; // array shorten facebook
+        let arrIdFb = [];
+        for (let j = 0; j < arrFb.length; j++) {
+            faGroup.push(arrFb[j].group);
+            fb.push(arrFb[j].url);
+            arrIdFb.push(arrFb[j].id);
+        }
+        let customer = {
+            idCamp: idCamp,
+            username: ob_camp.username,
+            name: ob_camp.name,
+            idUrl: ob_camp.id_url,
+            oldUrl: ob_camp.urlOrigin,
+            faGroup: faGroup,
+            sms: arrShort.sms.url,
+            email: arrShort.email.url,
+            other: arrShort.other.url,
+            fb: fb,
+            start: ob_camp.start_time,
+            end: ob_camp.end_time,
+            idEmail: arrShort.email.id,
+            idSms: arrShort.sms.id,
+            idOther: arrShort.other.id,
+            arrIdFb: arrIdFb
+        }
+        obCampBefore = customer; //don't care
+        // console.log("Send:",customer);
+        res.render('../d_views/enter/editCamp.ejs', { customer: customer, arrCampaign: arr_campaignPl });
+    } catch (e) {
+        console.log(e + "--tuan: editCamp_get enterControll");
+    }
+}
+exports.editCamp_post = async (req, res) => {
+    // console.log("Receive:", req.body);
+    let BF = obCampBefore;
+    let customer;
+    let rq = req.body;
+    rq.username = req.session.user;// tai su dung lai code trong CampaignModul
+    try {
+        // pageCamp khong su dung tai day truyen vao "0"
+        customer = await CampaignModul.validateUpdate(rq, BF, 0);
+        if (customer.state == 'ok') {
+            let rs = await CampaignModul.saveUpdateCamp(rq, BF.idCamp, BF.idUrl, BF.idEmail, BF.idSms, BF.idOther, BF.arrIdFb);
+        }
+        res.send(customer);
+    } catch (e) {
+        console.log(e + '--tuan: editCamp_port in EnterControll');
+    }
+}
+//Delete campaign
+exports.deleteCamp = async (req, res) => {
+    let idCampDel = req.params.id;
+    try {
+        let ob_camp = await Campaign.getObCampById(idCampDel);
+        // console.log("ob_camp:", ob_camp);
+        let idUrl = ob_camp.id_urls;
+        let ob_url = await Url.getObUrlById(idUrl);
+        // console.log("ob_url:", ob_url);
+        let arrIdShort = ob_url.short_urls;
+        let rs = await CampaignModul.deleteCamp(idCampDel, idUrl, arrIdShort);
+        res.redirect('/enterprise/manager');
+    } catch (e) {
+        console.log(e + '--tuan: deleteCamp in EnterControll');
+    }
+}
+// Export excel
+exports.exportExcel = (req, res) => {
+    try {
+        let user = req.session.user;
+        let report = ExportModul.exportExcel(ob_campaignPl, ob_urlPl, arr_shortPl,
+            accessE_Pl, accessS_Pl, accessO_Pl, accessGr_Pl, user);
+        res.attachment('report.xlsx');
+        return res.send(report);
+    } catch (e) {
+        console.log(e + "--tuan: exportExcel enterControll");
+    }
 }
 
 // get Short Link
 exports.getShortLink = async (req, res) => {
-    let domain = await User.getDomain(req.session.user);
+    let domain = "dontcare.com";
     let newUrl = seedUrl.createShortUrl(domain);
     res.send(newUrl);
 }
-
-//Short Link
+/*Short Link*/
 exports.shortLink = async (req, res) => {
     let customer = {};
-    let domain = await User.getDomain(req.session.user);
+    let domain = "dontcare.com";
+    let totalLink = 0;
     // console.log("req.body:", req.body);
     try {
         let checkFormat = seedUrl.checkFormatUrlShort(req.body.newUrl, domain);
@@ -438,6 +259,13 @@ exports.shortLink = async (req, res) => {
         // console.log("CheckExist:", checkExist);
         if (checkFormat == true && checkExist == false) {
             await addLink1(req.body.oldUrl, req.body.newUrl, req.session.user);
+            //get totalLink
+            let id_user = await User.getIdByUser(req.session.user);
+            let ob_campaign = await Campaign.getArrObUrl(id_user);
+            if (ob_campaign != undefined) totalLink = ob_campaign.id_urls.length;
+            let last_page = Math.ceil(totalLink / 10);
+            //
+            customer.last_page = last_page;
             customer.state = "ok";
         } else {
             customer.state = "fail";
@@ -450,67 +278,6 @@ exports.shortLink = async (req, res) => {
         console.log(e + "--tuan: shortLink in enterControll");
     }
     res.send(customer);
-
-}
-
-
-//check name campaign
-const checkNameCamp = async (nameCampaign, user) => {
-    // console.log("name:", req.body);
-    let id_user = await User.getIdByUser(user);
-    let rs = await Campaign.checkNameCamp(nameCampaign, id_user);
-    return rs;
-}
-const saveShortUrlCampaign = async (data) => {
-    //console.log("Data in saveCampaign:", data);
-    try {
-        let arrIdShorten = [];
-        let arrIdFb = await saveFb(data['groupArr[]'], data['fbArr[]']);
-        arrIdShorten = arrIdShorten.concat(arrIdFb);
-        let id_email = await saveESO(data.email, "email"); //console.log("id_email:", id_email);
-        arrIdShorten.push(id_email);
-        let id_sms = await saveESO(data.sms, "sms");
-        arrIdShorten.push(id_sms);
-        let id_other = await saveESO(data.other, "other");
-        arrIdShorten.push(id_other);
-
-        //console.log("SaveCampaign:", arrIdShorten);
-        return arrIdShorten;
-    } catch (e) {
-        console.log(e + "--tuan: saveCampaign.")
-    }
-
-}
-const saveFb = async (groupArr, fbArr) => {
-    //console.log("GROUPARR:",groupArr);
-    //console.log("FBARR:",fbArr);
-    let arrId = [];
-    try {
-        if (typeof groupArr == "string") {
-            //console.log("da vao string");
-            let id_fb = await saveESO(fbArr, "fb", groupArr);
-            arrId.push(id_fb);
-        } else {
-            for (let i = 0; i < groupArr.length; i++) {
-                // let ob_fb = {ulr: fbArr[i], group: groupArr[i], resource:"fb"};
-                let id_fb = await saveESO(fbArr[i], "fb", groupArr[i]);
-                arrId.push(id_fb);
-            }
-        }
-        return arrId;
-    } catch (e) {
-        console.log(e + "--tuan:saveFb");
-    }
-}
-const saveESO = async (shortUrl, resource, group) => {
-    try {
-        let result = await Shorten.save({ url: shortUrl, resource: resource, group: group });
-        //console.log("saveESO:", result);
-        //console.log("ketqua saveESO:", result);
-        return result.id;
-    } catch (e) {
-        console.log(e + "--tuan: saveESO")
-    }
 
 }
 const addLink1 = async (oldUrl, newUrl, user) => {
@@ -545,56 +312,105 @@ const addLink1 = async (oldUrl, newUrl, user) => {
         console.log(e + "--- Tuan: Error addLink1 in EnterControll");
     }
 };
-// prepare data export
-const prepareData1 = () => {
-    let email, sms, other, fb;
-    let group = [];
-    let data = [];
-    for(let i = 0; i < arr_shortPl.length; i++) {
-        if(arr_shortPl[i].resource == "email") {
-            email = prepareData2(arr_shortPl[i], accessE_Pl);
-            data = data.concat(email);
-        } 
-        else if(arr_shortPl[i].resource == "sms") {
-            sms = prepareData2(arr_shortPl[i], accessS_Pl);
-            data = data.concat(sms);
+/*---end Short Link--*/
+
+//history
+exports.showHistory = async (req, res) => {
+    let page_size = 10;
+    pageHistory = req.params.page;
+    // console.log("page_current:", page_current);
+    let i = (pageHistory - 1) * page_size;
+    let limit1 = (pageHistory - 1) * page_size + page_size;
+    let arr_link = [];
+    let totalLink = 0;
+    try {
+        let id_user = await User.getIdByUser(req.session.user);
+        let ob_campaign = await Campaign.getArrObUrl(id_user);
+        if (ob_campaign != undefined) {
+            let arr_idUrl = ob_campaign.id_urls;
+            if (arr_idUrl != undefined) {
+                totalLink = arr_idUrl.length;
+                // totalRecord = totalLink; // don't care 
+                let limit = (limit1 > totalLink) ? totalLink : limit1;
+                //Get 10 records(url & urlshort) per page
+                for (i; i < limit; i++) {
+                    let result1 = await Url.getObUrlById(arr_idUrl[i]);
+                    if (result1 != undefined) {
+                        let result2 = await Shorten.getObUrlShorten(result1.short_urls[0]);
+                        if (result2 != undefined) {
+                            let tempUrl = {
+                                idUrl: arr_idUrl[i], urlOrigin: result1.url, urlShort: result2.url,
+                                totalClick: result2.totalClick, timeCreate: result1.timeCreate, idShortUrl: result2.id
+                            }
+                            arr_link.push(tempUrl);
+                        }
+                    }
+                }
+            }
+            //console.log("arr_url:", arr_url[0]);
         }
-        else if(arr_shortPl[i].resource == "other") {
-            other = prepareData2(arr_shortPl[i], accessO_Pl);
-            data = data.concat(other);
-        }
-        else if(arr_shortPl[i].resource == "fb") {
-            group.push(arr_shortPl[i]);
-        }
+        let data = { arr_short: arr_link, admin: 'ADMIN', page: pageHistory, totalLink: totalLink };
+        res.render('../d_views/enter/history.ejs', { data: data, arrCampaign: arr_campaignPl });
+    } catch (e) {
+        console.log(e + "--tuan: error Manager");
     }
-    for(let j = 0; j < group.length ; j ++){
-        fb = prepareData2(group[j], accessGr_Pl[j].arr_access);
-        data = data.concat(fb);
-    }
-    // console.log("Data1:", data);
-    return data;
 }
-const prepareData2 = (urlshorten, arr_access) => {
-    let data = [];
-    for(let i = 0; i < arr_access.length; i++) {
-        let ob = {};
-        if(i == 0){
-            ob.url_shorten = urlshorten.url;
-            ob.resource = urlshorten.resource;
-            ob.group = urlshorten.group;
-        } else {
-            ob.url_shorten = null;
-            ob.resource = null;
-            ob.group = null;
-        }
-        ob.ip = arr_access[i].ip;
-        ob.date_click = arr_access[i].time_click.date;
-        ob.hour_click = arr_access[i].time_click.hour;
-        ob.location = arr_access[i].location;
-        ob.device = arr_access[i].device;
-        ob.os = arr_access[i].os;
-        ob.browser = arr_access[i].browser;
-        data.push(ob);
+// edit Link History
+exports.editLink = async (req, res) => {
+    // console.log("receive:", req.body);
+    let customer = {};
+    try {
+        //check new url invalid
+        let domain = "dontcare.com";
+        let newUrl = req.body.newUrl;
+        let check_format = seedUrl.checkFormatUrlShort(newUrl, domain);
+        let checkExist = await Shorten.checkExist(newUrl);
+        if (check_format) {
+            if (checkExist && (req.body.newUrl != req.body.urlPreEdit)) {
+                customer.state = "fail";
+            } else {
+                await Shorten.update(req.body.idShortUrl, { url: req.body.newUrl });
+                customer.state = "ok";
+            }
+        } else customer.state = 'fail';
+        return res.send(customer);
+    } catch (e) {
+        console.log(e + "--tuan: Error editLink in enterControll!");
     }
-    return data;
 }
+exports.deleteLink = async (req, res) => {
+    let idUrlOrign = req.params.id;
+    try {
+        let ob_url = await Url.getObUrlById(idUrlOrign);
+        let ob_shorten = await Shorten.getObUrlShorten(ob_url.short_urls[0]);//by id
+        let id_user = await User.getIdByUser(req.session.user);
+        let ob_camp = await Campaign.getCampaignNull(id_user); ob_camp = ob_camp[0];
+        //delete
+        let rs1 = await Shorten.delete(ob_shorten.id); //console.log("rs1:", rs1);
+        let rs2 = await Url.delete(ob_url.id);
+        let rs3 = await Campaign.removeIdUrlInCamp(ob_camp.id, ob_url.id);
+
+    } catch (e) {
+        console.log(e + "--tuan: error delete in urlControll.")
+    }
+    let path = '/enterprise/history/' + pageHistory;
+    res.redirect(path);
+}
+exports.search = async (req, res) => {
+    let nameCamp = req.query.campaign;
+    let idUser = await User.getIdByUser(req.session.user);
+    let arr_campaign = await Campaign.searchCamp(idUser, nameCamp);
+    // console.log("ArrCamp:", arrCamp);
+    arr_campaignPl = arr_campaign;//don't care
+    res.render("../d_views/enter/homeEnter.ejs", { arrCampaign: arr_campaign });
+}
+
+
+
+
+
+
+
+
+
+

@@ -31,7 +31,7 @@ let mapping = (arr) => {
 // Create short Url
 let createShortUrl = (domain1) => {
     let domain = fs.readFileSync('domain.txt', 'utf8');
-    console.log("DOMAIN read:", domain);
+    // console.log("DOMAIN read:", domain);
     //let domain = "localhost:3000/";
     domain = domain + '/';
     let random = Math.floor(100000000000 +  Math.random() * 900000000000); //12 numbers

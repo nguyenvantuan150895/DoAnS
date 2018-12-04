@@ -101,3 +101,76 @@ module.exports.getAll = () => {
         })
     })
 }
+// get total record
+module.exports.getTotalRecord = () => {
+    return new Promise((resolve, reject) => {
+        shorten.countDocuments((err, result) => {
+            if(err) reject(err);
+            else resolve(result);
+        })
+    })
+}
+
+//get 10 records 
+module.exports.getAllShort = (page) => {
+    return new Promise((resolve, reject) => {
+        const pagesize = 10;
+        shorten.find({resource: null}).skip(pagesize*(page-1)).limit(pagesize).exec((err, users) =>{
+            if(err) reject(err);
+            else resolve(users);
+        }); 
+    })  
+};
+// get totalLink (not link campaign)
+module.exports.getTotalLink = () => {
+    return new Promise((resolve, reject) => {
+        shorten.find({resource: null}, (err, result) => {
+            if(err) reject(err);
+            else resolve(result.length);
+        })
+    })
+}
+// Update urlShort (aminControll)
+module.exports.updateUrlShort = (idShorten, urlShort) => {
+    return new Promise((resolve, reject) => {
+        shorten.updateOne({_id:idShorten},{url:urlShort}, (err, result) => {
+            if(err)reject(err)
+            else resolve(result);
+        })
+    })
+}
+// Get url shorten by id
+module.exports.getUrlShortByID = (idShorten) => {
+    return new Promise((resolve, reject) => {
+        shorten.find({_id:idShorten},(err, result) => {
+            if(err)reject(err)
+            else resolve(result[0]);
+        })
+    })
+}
+//update urlshorten for UpdateCampaign( update resource, urlshorte)
+module.exports.updateUrlShortForUpdateCamp = (idShorten, urlShort, group) => {
+    return new Promise((resolve, reject) => {
+        shorten.findOneAndUpdate({_id:idShorten},{url:urlShort, group:group}, (err, result) => {
+            if(err)reject(err)
+            else resolve(result);
+        })
+    })
+}
+//search link (manger link)
+module.exports.searchLink = (linkSearch, page, pagesize) => {
+    return new Promise((resolve, reject) => {
+        shorten.find({ resource: null,url: {$regex: linkSearch, $options: 'i' }}, (err, result)=>{
+            if(err) reject(err);
+            else resolve(result);
+        }).skip(pagesize * (page - 1)).limit(pagesize);
+    })
+}
+module.exports.getTotalLinkSearch = (linkSearch) => {
+    return new Promise((resolve, reject) => {
+        shorten.find({resource: null, url: { $regex: linkSearch, $options: 'i' }}, (err, result)=>{
+            if(err) reject(err);
+            else resolve(result.length);
+        });
+    })
+}

@@ -1,13 +1,5 @@
 $( document ).ready(function() {
 	let role1;
-	let domain1 = 'test';
-	$(" input[name='optradio']").click(function(){
-		if($('input[name="optradio"]:checked').val() == "enterprise"){
-			$("#divDomain").show();
-		} else {
-			$("#divDomain").hide();
-		}
-	});
 	// SUBMIT FORM
     $("#customerForm").submit(function(event) {
 		// Prevent the form from submitting via the browser.
@@ -15,16 +7,20 @@ $( document ).ready(function() {
 		if(radioValue){
 			role1 = radioValue;
 		}
+
 		event.preventDefault();
 		ajaxPost();
 	});
     function ajaxPost(){
-		let username = $("#username").val(); username = username.trim();
-		let password = $("#password").val();password = password.trim();
-		let email = $("#email").val(); email = email.trim();
-		let domain = $("#domain").val(); domain = domain.trim();
-		// PREPARE FORM DATA
-    	var formData = {username: username, password: password, email:  email, role: role1, domain: domain}
+    	
+    	// PREPARE FORM DATA
+    	var formData = {
+    		username : $("#username").val(),
+			password :  $("#password").val(),
+			email :  $("#email").val(),
+			role: role1
+    	}
+    	
     	// DO POST
     	$.ajax({
 			type : "POST",
@@ -36,9 +32,9 @@ $( document ).ready(function() {
 				if(customer.state == "ok"){
 					if(customer.role == "personal") window.location = "/user/manager/1";
 					else if(customer.role == "enterprise") window.location = "/enterprise/manager";
+					
 				}
 				if(customer.state == "fail"){
-					// console.log("customer:", customer);
 					if(customer.userBlank) $('#errUserBlank').show();
 					else $('#errUserBlank').hide();
 					if(customer.passBlank) $('#errPassBlank').show();
@@ -49,11 +45,9 @@ $( document ).ready(function() {
 					else $('#errUser').hide();
 					if(customer.emailDup) $('#errEmail').show();
 					else $('#errEmail').hide();
-					if(customer.blankDomain == true) $("#blankDomain").show();
-					else $("#blankDomain").hide();
-					if(customer.existDomain) $("#existDomain").show();
-					else  $("#existDomain").hide();
 				}
+				//alert(customer);
+				console.log('customer:', customer);
 			},
 			error : function(e) {
 				
@@ -65,6 +59,9 @@ $( document ).ready(function() {
     	resetData();
     }
     function resetData(){
-		//do sth...
+    	$("#firstname").val("");
+		$("#lastname").val("");
+		// $("#email").val("");
+		
     }
 })

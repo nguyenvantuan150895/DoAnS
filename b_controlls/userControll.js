@@ -36,45 +36,15 @@ exports.signup_get = (req, res) => {
     res.render("../d_views/user/signup.ejs");
 }
 exports.signup_post = async (req, res) => {
-    //console.log("RECEIVE:", req.body);
     let customer = {};
-    let domain = req.body.domain; 
-    if(req.body.role == 'personal'){
-        domain = null; 
-        req.body.domain = null;
-    } 
     try{
-        if(domain == null) {
-            let rs = await User.add(req.body);
-            if(rs.id) {
-                customer.state = "ok";
-                customer.role = req.body.role;
-                req.session.user = req.body.username;
-            }
+        let rs = await User.add(req.body);
+        // console.log("Req.body:", req.body);
+        if(rs.id) {
+            customer.state = "ok";
+            customer.role = req.body.role;
+            req.session.user = req.body.username;
         }
-        else if(domain.length != 0){
-            // console.log("okokokok");
-            customer.blankDomain = false;
-            let check_exist = await User.existDomain(domain);
-            //console.log("CheckExist:", check_exist);
-            if(check_exist == false ){
-                customer.existDomain = false;
-                let rs = await User.add(req.body);
-                if(rs.id) {
-                    customer.state = "ok";
-                    customer.role = req.body.role;
-                    req.session.user = req.body.username;
-                }
-            }else {
-                // console.log("Ton tai")
-                customer.state = 'fail';
-                customer.existDomain = true;
-            }
-        }else {
-            customer.state = 'fail';
-            customer.blankDomain = true;
-        }
-        //console.log("SEND:", customer);
         return res.send(customer);
         
     }catch(err){
@@ -107,27 +77,26 @@ exports.userLogout = (req, res) => {
 // user add link
 exports.addLink = async (req, res) => { 
     let data = {};
-    let domain = await User.getDomain(req.session.user);
+    let domain = "dontcare.com";
     data.urlOrigin = req.body.urlOrigin;
     let shortUrl = seedUrl.createShortUrl(domain);
     try{
         let ob_shortUrl = await Shorten.save({url: shortUrl});
         let object_url = {url:req.body.urlOrigin , short_urls : [ob_shortUrl.id]};
-        let result = await Url.save(object_url);
+        let ob_url = await Url.save(object_url);
         if(req.session.user) {// if req.session.user , gs : = user1
-            //get id_user by user 
             let id_user = await User.getIdByUser(req.session.user);//req.session.user
             let checkUser = await Campaign.checkUserExist(id_user);
-            //console.log("id_user:", id_user);
-            //console.log("checkUser:", checkUser);
+            let ob_camp = await Campaign.getCampaignNull(id_user); 
             if(checkUser) {
-                await Campaign.update(id_user, result.id);// result.id = id_url
+                ob_camp = ob_camp[0];
+                let rs = await Campaign.addIdUrlInCamp(ob_camp.id,ob_url.id);
             } else {
-                let ob_campaign = {id_user: id_user, id_urls :[result.id]};
+                let ob_campaign = {id_user: id_user, id_urls :[ob_url.id]};
                 await Campaign.save(ob_campaign);
             }
         }
-        if(result) data.urlShort = shortUrl;
+        if(ob_url) data.urlShort = shortUrl;
         res.send(data);
     }catch(e) {
         console.log(e +"--- Tuan: Error addLink" );
@@ -139,12 +108,12 @@ exports.manager = async (req, res) => {
     //res.render("../d_views/user/manager.ejs", {user: "user1"});
     let page_size = 5;
     page_current = req.params.page;
+    // console.log("page_current:", page_current);
     let i = (page_current - 1) * page_size;
     let limit1 = (page_current - 1) * page_size + page_size;
     let arr_url = [];
     let count = 0;
     try {
-        // let domain = await User.getDomain(req.session.user);
         let domain = fs.readFileSync('domain.txt', 'utf8');
         domain = domain + '/';
         let id_user = await User.getIdByUser(req.session.user);
@@ -172,9 +141,7 @@ exports.manager = async (req, res) => {
                     //console.log("arr_url:", arr_url[0]);
         }
         let data3 = {url:arr_url, page:page_current, count: count, user: req.session.user,domain:domain }
-        // console.log("data3:",data3);
         res.render("../d_views/user/manager.ejs",data3 );
-       //res.send("acc");
     } catch (e) {
         console.log(e + "--tuan: error Manager");
     }
@@ -187,13 +154,17 @@ exports.delete = async (req, res) => {
         let ob_url = await Url.getObUrlById(id);
                 //console.log("ob_url:", ob_url);
         let ob_shorten = await Shorten.getObUrlShorten(ob_url.short_urls[0]);//by id
-                //console.log("ob_Shorten:", ob_shorten);
+        let id_user = await User.getIdByUser(req.session.user);
+        let ob_camp = await Campaign.getCampaignNull(id_user); ob_camp = ob_camp[0];
+        // console.log("camapaign:", ob_camp);
+        // console.log("idUrl:", ob_url.id);
+        // console.log("idShort:", ob_shorten.id);
+        // console.log("Id CAMPAIGN:", ob_camp.id);
         //delete
-            //console.log("ID SHORTEN:", ob_shorten.id);
         let rs1 = await Shorten.delete(ob_shorten.id); //console.log("rs1:", rs1);
         let rs2 = await Url.delete(ob_url.id);
-        let rs3 = await Campaign.delete(req.session.user, id);
-            //console.log("Rs3:", rs3);
+        let rs3 = await Campaign.removeIdUrlInCamp(ob_camp.id, ob_url.id);
+        
     } catch (e) {
         console.log(e + "--tuan: error delete in urlControll.")
     }
@@ -204,7 +175,7 @@ exports.delete = async (req, res) => {
 //Create Link custom
 exports.userCreateLink = async (req, res) => {
     let customer = {};
-    let domain = await User.getDomain(req.session.user);
+    let domain = "dontcare.com";
     try {
         //check new url invalid
         let newUrl = req.body.newUrl;
@@ -229,7 +200,7 @@ exports.userEditLink = async (req, res) => {
     let customer = {};
     try {
         //check new url invalid
-        let domain = await User.getDomain(req.session.user);
+        let domain = "dontcare.com";
         let newUrl = req.body.newUrl;
         let check_format = seedUrl.checkFormatUrlShort(newUrl, domain);
         let checkExist = await Shorten.checkExist(newUrl);
@@ -249,23 +220,20 @@ exports.userEditLink = async (req, res) => {
 
 //add Link1
 let addLink1 = async (oldUrl, newUrl, user) => { 
-    // let data = {};
-    // data.urlOrigin = req.body.urlOrigin;
-    // let shortUrl = seedUrl.createShortUrl();
     try{
         let ob_shortUrl = await Shorten.save({url: newUrl}); 
         let object_url = {url:oldUrl , short_urls : [ob_shortUrl.id]};
-        let result = await Url.save(object_url);
+        let ob_url = await Url.save(object_url);
         
         //get id_user by user 
         let id_user = await User.getIdByUser(user);//req.session.user
         let checkUser = await Campaign.checkUserExist(id_user);
-        //console.log("id_user:", id_user);
-        //console.log("checkUser:", checkUser);
+        let ob_camp = await Campaign.getCampaignNull(id_user); 
         if(checkUser) {
-            await Campaign.update(id_user, result.id);// result.id = id_url
+            ob_camp = ob_camp[0];
+            let rs = await Campaign.addIdUrlInCamp(ob_camp.id,ob_url.id);
         } else {
-            let ob_campaign = {id_user: id_user, id_urls :[result.id]};
+            let ob_campaign = {id_user: id_user, id_urls :[ob_url.id]};
             await Campaign.save(ob_campaign);
         }
         return true;
